@@ -78,6 +78,18 @@
 
                 <div class="app-actions">
                   <button
+                    v-if="!isSubscribed"
+                    @click="scrollToPlans"
+                    class="btn btn-highlight"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="16"></line>
+                      <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                    <span>Ver Planes y Suscribirse</span>
+                  </button>
+                  <button
                     v-if="application.url"
                     @click="openApplicationSite"
                     class="btn btn-primary"
@@ -175,7 +187,7 @@
           </div>
 
           <!-- Tabs Navigation -->
-          <div class="tabs-card">
+          <div ref="tabsCard" class="tabs-card">
             <nav class="tabs-nav">
               <button
                 v-for="tab in tabs"
@@ -183,8 +195,10 @@
                 @click="activeTab = tab.id"
                 :class="['tab-button', { active: activeTab === tab.id }]"
               >
-                <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path v-for="(pathData, idx) in tab.icon.split('|')" :key="idx" :d="pathData" />
+                <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <template v-for="(pathData, idx) in tab.icon.split('|')" :key="idx">
+                    <path :d="pathData" />
+                  </template>
                 </svg>
                 <span>{{ tab.name }}</span>
               </button>
@@ -379,56 +393,6 @@
                   <p>Esta aplicación no tiene planes configurados.</p>
                 </div>
               </div>
-
-              <!-- Estadísticas Tab -->
-              <div v-else-if="activeTab === 'stats'" class="stats-content">
-                <div class="stats-grid">
-                  <div class="stat-card">
-                    <div class="stat-icon stat-icon-primary">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                      </svg>
-                    </div>
-                    <div class="stat-info">
-                      <dt class="stat-label">Total de Suscripciones</dt>
-                      <dd class="stat-value">{{ application.subscriptionCount || 0 }}</dd>
-                    </div>
-                  </div>
-
-                  <div class="stat-card">
-                    <div class="stat-icon stat-icon-success">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                      </svg>
-                    </div>
-                    <div class="stat-info">
-                      <dt class="stat-label">Estado</dt>
-                      <dd class="stat-value">
-                        <span v-if="application.isHidden" class="status-badge status-warning">Oculta</span>
-                        <span v-else-if="application.isActive" class="status-badge status-success">Activa</span>
-                        <span v-else class="status-badge status-inactive">Inactiva</span>
-                      </dd>
-                    </div>
-                  </div>
-
-                  <div class="stat-card">
-                    <div class="stat-icon stat-icon-info">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polyline points="12 6 12 12 16 14"></polyline>
-                      </svg>
-                    </div>
-                    <div class="stat-info">
-                      <dt class="stat-label">Última Actualización</dt>
-                      <dd class="stat-value small">{{ formatDate(application.updatedAt) }}</dd>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -508,6 +472,7 @@ const application = ref<any>(null)
 const loading = ref(true)
 const activeTab = ref('details')
 const carouselContainer = ref<HTMLElement | null>(null)
+const tabsCard = ref<HTMLElement | null>(null)
 const currentIndex = ref(0)
 const canScrollLeft = ref(false)
 const canScrollRight = ref(false)
@@ -534,11 +499,6 @@ const tabs = [
     id: 'plans',
     name: 'Planes',
     icon: 'M2 7h20v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7z|M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16'
-  },
-  {
-    id: 'stats',
-    name: 'Estadísticas',
-    icon: 'M12 20V10|M18 20V4|M6 20V16'
   }
 ]
 
@@ -746,6 +706,21 @@ const shareApplication = () => {
     navigator.clipboard.writeText(window.location.href)
     alert('URL copiada al portapapeles')
   }
+}
+
+const scrollToPlans = () => {
+  // Cambiar a la pestaña de planes
+  activeTab.value = 'plans'
+  
+  // Scroll suave a la sección de tabs
+  setTimeout(() => {
+    if (tabsCard.value) {
+      tabsCard.value.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start'
+      })
+    }
+  }, 100)
 }
 
 const formatDate = (date: string) => {
@@ -1111,6 +1086,37 @@ watch(() => lightboxOpen.value, (isOpen) => {
 .btn-primary:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+}
+
+.btn-highlight {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+  font-weight: 700;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-highlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.btn-highlight:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 12px 28px rgba(16, 185, 129, 0.5);
+}
+
+.btn-highlight:hover::after {
+  opacity: 1;
+}
+
+.btn-highlight:active {
+  transform: translateY(-1px) scale(1.01);
 }
 
 .btn-secondary {
@@ -1770,103 +1776,6 @@ watch(() => lightboxOpen.value, (isOpen) => {
 .plan-button:not(.current-plan-button):hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
-}
-
-/* Stats Content */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-}
-
-.stat-card {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  background: var(--color-background-mute);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  padding: 1.75rem;
-  transition: all 0.2s ease;
-}
-
-.stat-card:hover {
-  border-color: var(--color-primary);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.stat-icon-primary {
-  background: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
-}
-
-.stat-icon-success {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-}
-
-.stat-icon-info {
-  background: rgba(139, 92, 246, 0.1);
-  color: #8b5cf6;
-}
-
-.stat-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.stat-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  margin-bottom: 0.375rem;
-}
-
-.stat-value {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  line-height: 1;
-}
-
-.stat-value.small {
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.375rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.status-success {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-}
-
-.status-warning {
-  background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
-}
-
-.status-inactive {
-  background: rgba(107, 114, 128, 0.1);
-  color: #6b7280;
 }
 
 /* ============================================
