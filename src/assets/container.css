@@ -1,0 +1,455 @@
+/* ============================================
+   CONTAINER SYSTEM - Professional Layout
+   ============================================
+   
+   Sistema de contenedores profesional para centrar
+   y gestionar el contenido de forma consistente.
+   
+   Uso:
+   - .container: Contenedor estándar (1200px max)
+   - .container-fluid: Ancho completo con padding
+   - .container-narrow: Contenido estrecho (800px)
+   - .container-wide: Contenido ancho (1400px)
+   ============================================ */
+
+/* ============================================
+   BASE CONTAINER
+   ============================================ */
+.container {
+  width: 100%;
+  max-width: 1280px; /* más ancho para evitar sensación de columna estrecha */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* ============================================
+   CONTAINER VARIANTS
+   ============================================ */
+
+/* Full width con padding lateral */
+.container-fluid {
+  width: 100%;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Contenido estrecho - ideal para texto/formularios */
+.container-narrow {
+  width: 100%;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Contenido ancho - dashboards complejos */
+.container-wide {
+  width: 100%;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Extra wide - para casos especiales */
+.container-xl {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* ============================================
+   PADDING UTILITIES
+   ============================================ */
+
+/* Vertical padding options */
+.py-sm {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.py-md {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+.py-lg {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+.py-xl {
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+}
+
+.py-2xl {
+  padding-top: 4rem;
+  padding-bottom: 4rem;
+}
+
+/* Top padding only */
+.pt-sm { padding-top: 1rem; }
+.pt-md { padding-top: 1.5rem; }
+.pt-lg { padding-top: 2rem; }
+.pt-xl { padding-top: 3rem; }
+.pt-2xl { padding-top: 4rem; }
+
+/* Bottom padding only */
+.pb-sm { padding-bottom: 1rem; }
+.pb-md { padding-bottom: 1.5rem; }
+.pb-lg { padding-bottom: 2rem; }
+.pb-xl { padding-bottom: 3rem; }
+.pb-2xl { padding-bottom: 4rem; }
+
+/* ============================================
+   SECTION WRAPPERS
+   ============================================ */
+
+/* Sección con fondo completo pero contenido centrado */
+.section {
+  width: 100%;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+.section-sm {
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
+.section-lg {
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+}
+
+.section-xl {
+  padding-top: 4rem;
+  padding-bottom: 4rem;
+}
+
+/* ============================================
+   GRID SYSTEM
+   ============================================ */
+
+.grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.grid-cols-1 { grid-template-columns: repeat(1, 1fr); }
+.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* Auto-fit grid - responsive automático */
+.grid-auto-fit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.grid-auto-fit-sm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.grid-auto-fit-lg {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2rem;
+}
+
+/* Gap utilities */
+.gap-xs { gap: 0.5rem; }
+.gap-sm { gap: 1rem; }
+.gap-md { gap: 1.5rem; }
+.gap-lg { gap: 2rem; }
+.gap-xl { gap: 3rem; }
+
+/* ============================================
+   FLEX UTILITIES
+   ============================================ */
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.items-start {
+  align-items: flex-start;
+}
+
+.items-end {
+  align-items: flex-end;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-around {
+  justify-content: space-around;
+}
+
+.justify-end {
+  justify-content: flex-end;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+/* ============================================
+   RESPONSIVE BREAKPOINTS
+   ============================================ */
+
+/* Large Desktop (1440px+) */
+@media (min-width: 1440px) {
+  .container {
+    max-width: 1360px; /* un poco más ancho en pantallas grandes */
+  }
+  .container-wide {
+    max-width: 1680px;
+  }
+}
+
+/* Tablet Portrait (768px - 1023px) */
+@media (max-width: 1023px) {
+  .container,
+  .container-wide,
+  .container-narrow,
+  .container-xl {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+  
+  /* Stack grid columns */
+  .grid-cols-4,
+  .grid-cols-3,
+  .grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  /* Reduce section padding */
+  .section-xl {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+  }
+  
+  .section-lg {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+}
+
+/* Mobile (up to 767px) */
+@media (max-width: 767px) {
+  .container,
+  .container-fluid,
+  .container-wide,
+  .container-narrow,
+  .container-xl {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  /* Single column on mobile */
+  .grid-cols-4,
+  .grid-cols-3,
+  .grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Reduce gaps */
+  .grid {
+    gap: 1rem;
+  }
+  
+  .grid-auto-fit,
+  .grid-auto-fit-lg {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  /* Reduce vertical padding */
+  .py-2xl {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+  
+  .py-xl {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .section-xl {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+  
+  .section-lg {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+  
+  .section {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+}
+
+/* Small Mobile (up to 480px) */
+@media (max-width: 480px) {
+  .container,
+  .container-fluid,
+  .container-wide,
+  .container-narrow,
+  .container-xl {
+    padding-left: 0.875rem;
+    padding-right: 0.875rem;
+  }
+  
+  .grid {
+    gap: 0.875rem;
+  }
+  
+  .py-xl {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+}
+
+/* ============================================
+   SAFE AREA INSETS (Notched devices)
+   ============================================ */
+@supports (padding: max(0px)) {
+  .container,
+  .container-fluid,
+  .container-wide,
+  .container-narrow,
+  .container-xl {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+  
+  @media (max-width: 767px) {
+    .container,
+    .container-fluid,
+    .container-wide,
+    .container-narrow,
+    .container-xl {
+      padding-left: max(1rem, env(safe-area-inset-left));
+      padding-right: max(1rem, env(safe-area-inset-right));
+    }
+  }
+}
+
+/* ============================================
+   UTILITIES - SPACING & ALIGNMENT
+   ============================================ */
+
+.text-center {
+  text-align: center;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.w-full {
+  width: 100%;
+}
+
+/* ============================================
+   CARD SYSTEM
+   ============================================ */
+
+.card {
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card:hover {
+  border-color: var(--color-border-hover);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.card-sm {
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.card-lg {
+  padding: 2rem;
+  border-radius: 16px;
+}
+
+.card-header {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-heading);
+  margin: 0;
+}
+
+.card-description {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 0.5rem 0 0;
+}
+
+.card-body {
+  color: var(--color-text);
+}
+
+.card-footer {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
