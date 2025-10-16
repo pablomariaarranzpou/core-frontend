@@ -22,12 +22,44 @@
           </div>
 
           <div class="profile-avatar-section">
-            <div class="avatar-large">
-              <span>{{ avatarInitial }}</span>
+            <div class="avatar-large" :class="{ 'has-image': authStore.user.avatar }">
+              <img v-if="authStore.user.avatar" :src="authStore.user.avatar" alt="Avatar" />
+              <span v-else>{{ avatarInitial }}</span>
             </div>
             <div class="avatar-info">
               <p class="avatar-label">Foto de perfil</p>
-              <p class="avatar-hint">JPG, PNG o GIF - Máximo 2MB</p>
+              <p class="avatar-hint">JPG, PNG, WEBP o GIF - Máximo 5MB</p>
+              <div class="avatar-actions">
+                <label class="btn-upload" :class="{ 'uploading': usersStore.loading }">
+                  <svg v-if="!usersStore.loading" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span class="spinner" v-else></span>
+                  {{ usersStore.loading ? 'Subiendo...' : 'Cambiar foto' }}
+                  <input 
+                    type="file" 
+                    ref="avatarInput"
+                    accept="image/jpeg,image/png,image/webp,image/gif" 
+                    @change="handleAvatarChange"
+                    :disabled="usersStore.loading"
+                    style="display: none;"
+                  />
+                </label>
+                <button 
+                  v-if="authStore.user.avatar" 
+                  @click="handleRemoveAvatar"
+                  class="btn-remove-avatar"
+                  :disabled="usersStore.loading"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  Eliminar
+                </button>
+              </div>
             </div>
           </div>
 
@@ -190,6 +222,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useUsersStore } from '@/stores/users'
 import { useConfirm } from '@/composables/useConfirm'
 import httpService from '@/services/http'
 import { 
@@ -203,11 +236,15 @@ import ChangePasswordModal from '@/components/ChangePasswordModal.vue'
 import Setup2FAModal from '@/components/Setup2FAModal.vue'
 
 const authStore = useAuthStore()
+const usersStore = useUsersStore()
 const { confirm } = useConfirm()
 
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
+
+// Estados de Avatar (ahora manejado por el store)
+const avatarInput = ref<HTMLInputElement | null>(null)
 
 // Estados de los modales
 const showChangePasswordModal = ref(false)
@@ -231,7 +268,13 @@ const formData = ref({
 })
 
 const avatarInitial = computed(() => {
-  const name = authStore.user?.firstName || authStore.user?.email
+  const user = authStore.user
+  if (!user) return 'U'
+  
+  // Si tiene avatar, no mostramos inicial
+  if ((user as any).avatar) return ''
+  
+  const name = user.firstName || user.email
   return (name?.[0] || 'U').toUpperCase()
 })
 
@@ -263,7 +306,7 @@ async function handleUpdateProfile() {
   
   try {
     // Llamada al endpoint del backend para actualizar perfil
-    await httpService.patch('/users/me', {
+    await httpService.patch('/users/profile', {
       firstName: formData.value.firstName,
       lastName: formData.value.lastName,
       phone: formData.value.phone
@@ -291,6 +334,82 @@ async function handleUpdateProfile() {
     })
   } finally {
     saving.value = false
+  }
+}
+
+// Gestión de Avatar
+async function handleAvatarChange(event: Event) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  
+  if (!file) return
+  
+  try {
+    // Usar la función del store que ya tiene todas las validaciones
+    await usersStore.uploadAvatar(file)
+    
+    // Recargar datos del usuario
+    await authStore.fetchUserFromBackend()
+    
+    await confirm({
+      title: '¡Avatar Actualizado!',
+      message: 'Tu foto de perfil se ha actualizado correctamente.',
+      type: 'success',
+      confirmText: 'Entendido',
+      showCancel: false,
+    })
+  } catch (err: any) {
+    console.error('Error al subir avatar:', err)
+    await confirm({
+      title: 'Error',
+      message: err.message || 'No se pudo subir tu foto de perfil',
+      type: 'error',
+      confirmText: 'Cerrar',
+      showCancel: false,
+    })
+  } finally {
+    // Limpiar input
+    if (avatarInput.value) {
+      avatarInput.value.value = ''
+    }
+  }
+}
+
+async function handleRemoveAvatar() {
+  const confirmed = await confirm({
+    title: 'Eliminar foto de perfil',
+    message: '¿Estás seguro de que deseas eliminar tu foto de perfil?',
+    details: 'Volverás a tener un avatar con tu inicial.',
+    type: 'warning',
+    confirmText: 'Sí, eliminar',
+    cancelText: 'Cancelar',
+  })
+  
+  if (!confirmed) return
+  
+  try {
+    // Usar la función del store
+    await usersStore.removeAvatar()
+    
+    // Recargar datos del usuario
+    await authStore.fetchUserFromBackend()
+    
+    await confirm({
+      title: 'Foto eliminada',
+      message: 'Tu foto de perfil ha sido eliminada correctamente.',
+      type: 'success',
+      confirmText: 'Entendido',
+      showCancel: false,
+    })
+  } catch (err: any) {
+    console.error('Error al eliminar avatar:', err)
+    await confirm({
+      title: 'Error',
+      message: err.message || 'No se pudo eliminar tu foto de perfil',
+      type: 'error',
+      confirmText: 'Cerrar',
+      showCancel: false,
+    })
   }
 }
 
@@ -471,6 +590,11 @@ function getRoleLabel(role: string): string {
 // Cargar datos al montar
 onMounted(() => {
   loadUserProfile()
+  
+  // Debug: verificar avatar del usuario
+  console.log('🖼️ ProfileView - Usuario completo:', authStore.user)
+  console.log('🖼️ ProfileView - Avatar URL:', authStore.user?.avatar)
+  console.log('🖼️ ProfileView - Has avatar:', !!authStore.user?.avatar)
 })
 </script>
 
@@ -576,8 +700,8 @@ onMounted(() => {
 }
 
 :global(.dark) .profile-avatar-section {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--color-background-mute);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .avatar-large {
@@ -593,6 +717,21 @@ onMounted(() => {
   font-size: 2rem;
   flex-shrink: 0;
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  overflow: hidden;
+  position: relative;
+}
+
+.avatar-large.has-image {
+  background: var(--color-background-mute);
+}
+
+.avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .avatar-info {
@@ -606,9 +745,91 @@ onMounted(() => {
 }
 
 .avatar-hint {
-  margin: 0;
+  margin: 0 0 0.75rem 0;
   font-size: 0.875rem;
-  color: var(--vt-c-text-2);
+  color: var(--color-text-muted);
+}
+
+.avatar-actions {
+  display: flex;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+.btn-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.2);
+}
+
+.btn-upload:hover:not(.uploading) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+}
+
+.btn-upload.uploading {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-remove-avatar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-remove-avatar:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.2);
+}
+
+.btn-remove-avatar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:global(.dark) .btn-remove-avatar {
+  background: rgba(220, 38, 38, 0.2);
+  color: #ff6b6b;
+  border-color: rgba(220, 38, 38, 0.4);
+}
+
+:global(.dark) .btn-remove-avatar svg {
+  color: #ff6b6b;
+  stroke: #ff6b6b;
+}
+
+:global(.dark) .btn-remove-avatar:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.3);
+  border-color: rgba(220, 38, 38, 0.6);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.5);
+  color: #ff8787;
+}
+
+:global(.dark) .btn-remove-avatar:hover:not(:disabled) svg {
+  color: #ff8787;
+  stroke: #ff8787;
 }
 
 /* Badge de estado */
@@ -670,16 +891,32 @@ onMounted(() => {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+:global(.dark) .form-group input {
+  background: var(--color-background-mute);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--color-text);
+}
+
+:global(.dark) .form-group input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
 .input-disabled {
   opacity: 0.6;
   cursor: not-allowed;
   background: var(--color-background-mute) !important;
 }
 
+:global(.dark) .input-disabled {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--color-text-muted);
+}
+
 .field-hint {
   margin-top: 0.375rem;
   font-size: 0.8125rem;
-  color: var(--vt-c-text-2);
+  color: var(--color-text-muted);
 }
 
 .form-actions {
@@ -715,6 +952,16 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
+:global(.dark) .btn-primary {
+  background: var(--color-primary);
+  color: white !important;
+}
+
+:global(.dark) .btn-primary:hover:not(:disabled) {
+  background: #2563eb;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
 .btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -730,6 +977,20 @@ onMounted(() => {
 .btn-secondary:hover {
   background: var(--color-background-mute);
   border-color: var(--color-border-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+:global(.dark) .btn-secondary {
+  background: var(--color-background-mute);
+  color: var(--color-text);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+:global(.dark) .btn-secondary:hover {
+  background: var(--color-background-soft);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 .btn-danger {
@@ -738,20 +999,47 @@ onMounted(() => {
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
+.btn-danger svg {
+  color: currentColor;
+  stroke: currentColor;
+}
+
 .btn-danger:hover {
   background: rgba(239, 68, 68, 0.15);
   border-color: rgba(239, 68, 68, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25);
 }
 
-:global(.dark) .btn-danger {
-  background: rgba(248, 113, 113, 0.15);
-  color: #fca5a5;
-  border-color: rgba(248, 113, 113, 0.3);
+:global(.dark) .btn-danger,
+:global(html.dark) .btn-danger,
+:global(:root.dark) .btn-danger {
+  background: rgba(220, 38, 38, 0.25);
+  color: #ff8787 !important;
+  border-color: rgba(220, 38, 38, 0.5);
 }
 
-:global(.dark) .btn-danger:hover {
-  background: rgba(248, 113, 113, 0.2);
-  border-color: rgba(248, 113, 113, 0.4);
+:global(.dark) .btn-danger svg,
+:global(html.dark) .btn-danger svg,
+:global(:root.dark) .btn-danger svg {
+  color: #ff8787 !important;
+  stroke: #ff8787 !important;
+}
+
+:global(.dark) .btn-danger:hover,
+:global(html.dark) .btn-danger:hover,
+:global(:root.dark) .btn-danger:hover {
+  background: rgba(220, 38, 38, 0.35);
+  border-color: rgba(220, 38, 38, 0.7);
+  box-shadow: 0 2px 10px rgba(220, 38, 38, 0.5);
+  color: #ffa3a3 !important;
+}
+
+:global(.dark) .btn-danger:hover svg,
+:global(html.dark) .btn-danger:hover svg,
+:global(:root.dark) .btn-danger:hover svg {
+  color: #ffa3a3 !important;
+  stroke: #ffa3a3 !important;
 }
 
 .spinner {
@@ -770,8 +1058,8 @@ onMounted(() => {
 }
 
 :global(.dark) .info-section {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--color-background-mute);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .info-grid {
@@ -788,7 +1076,7 @@ onMounted(() => {
 
 .info-item label {
   font-size: 0.875rem;
-  color: var(--vt-c-text-2);
+  color: var(--color-text-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -811,36 +1099,43 @@ onMounted(() => {
   border-radius: 20px;
   font-size: 0.875rem !important;
   font-weight: 600 !important;
+  border: 1px solid transparent;
 }
 
 .role-owner {
-  background: rgba(255, 159, 10, 0.12);
-  color: rgb(255, 159, 10);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.1));
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
 }
 
 :global(.dark) .role-owner {
-  background: rgba(255, 159, 10, 0.2);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.15));
   color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.5);
 }
 
 .role-admin {
-  background: rgba(59, 130, 246, 0.12);
-  color: rgb(59, 130, 246);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.1));
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 :global(.dark) .role-admin {
-  background: rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(59, 130, 246, 0.15));
   color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.5);
 }
 
 .role-user {
-  background: rgba(142, 142, 147, 0.12);
-  color: rgb(142, 142, 147);
+  background: linear-gradient(135deg, rgba(107, 114, 128, 0.15), rgba(107, 114, 128, 0.1));
+  color: #6b7280;
+  border-color: rgba(107, 114, 128, 0.3);
 }
 
 :global(.dark) .role-user {
-  background: rgba(142, 142, 147, 0.2);
-  color: #9ca3af;
+  background: linear-gradient(135deg, rgba(156, 163, 175, 0.25), rgba(156, 163, 175, 0.15));
+  color: #d1d5db;
+  border-color: rgba(156, 163, 175, 0.4);
 }
 
 /* Botones de seguridad */
@@ -864,8 +1159,8 @@ onMounted(() => {
 }
 
 :global(.dark) .security-button {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: var(--color-background-mute);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .security-button:hover {
@@ -875,8 +1170,8 @@ onMounted(() => {
 }
 
 :global(.dark) .security-button:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: var(--color-background-soft);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .security-button-icon {
@@ -903,11 +1198,11 @@ onMounted(() => {
 
 .security-button-description {
   font-size: 0.875rem;
-  color: var(--vt-c-text-2);
+  color: var(--color-text-muted);
 }
 
 .chevron-right {
-  color: var(--vt-c-text-2);
+  color: var(--color-text-muted);
   opacity: 0.5;
   transition: all 0.2s ease;
 }
@@ -923,14 +1218,22 @@ onMounted(() => {
 }
 
 :global(.dark) .danger-section {
-  border-color: rgba(248, 113, 113, 0.3);
-  background: rgba(239, 68, 68, 0.03);
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+:global(.dark) .danger-section h2 {
+  color: #ff8787;
 }
 
 .danger-description {
   margin: 0 0 1.5rem 0;
-  color: var(--vt-c-text-2);
+  color: var(--color-text-muted);
   font-size: 0.9375rem;
+}
+
+:global(.dark) .danger-description {
+  color: #fca5a5;
 }
 
 .danger-actions {

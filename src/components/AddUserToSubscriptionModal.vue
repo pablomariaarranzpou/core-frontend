@@ -121,8 +121,9 @@
                     @keydown.enter="selectUser(user.id)"
                     @keydown.space.prevent="selectUser(user.id)"
                   >
-                    <div class="user-avatar">
-                      {{ getInitials(user.firstName, user.lastName) }}
+                    <div class="user-avatar" :class="{ 'has-image': user.avatar }">
+                      <img v-if="user.avatar" :src="user.avatar" alt="Avatar" />
+                      <span v-else>{{ getInitials(user.firstName, user.lastName) }}</span>
                     </div>
                     <div class="user-info">
                       <div class="user-name">{{ user.firstName }} {{ user.lastName }}</div>
@@ -182,6 +183,7 @@ export interface User {
   email: string
   firstName: string
   lastName: string
+  avatar?: string | null
   role?: 'admin' | 'user' | 'owner'
   isActive?: boolean
 }
@@ -693,6 +695,21 @@ watch(() => props.modelValue, (isOpen) => {
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
   letter-spacing: -0.01em;
+  overflow: hidden;
+  position: relative;
+}
+
+.user-avatar.has-image {
+  background: var(--color-background-mute);
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .user-info {

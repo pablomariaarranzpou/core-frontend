@@ -15,6 +15,8 @@ interface User {
   lastName?: string
   fullName?: string
   role?: string
+  avatar?: string
+  phone?: string
   account?: {
     id: string
     name: string
@@ -50,12 +52,16 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const backendUser = await http.get('/auth/me')
       
+      console.log('🔍 Respuesta completa del backend:', backendUser)
+      
       // Actualizar el usuario con los datos del backend
       if (user.value) {
         user.value.firstName = backendUser.firstName
         user.value.lastName = backendUser.lastName
         user.value.fullName = `${backendUser.firstName} ${backendUser.lastName}`.trim()
         user.value.role = backendUser.role
+        user.value.avatar = backendUser.avatar
+        user.value.phone = backendUser.phone
         user.value.account = backendUser.account
         
         console.log('✅ Datos del usuario obtenidos del backend:', {
@@ -63,8 +69,12 @@ export const useAuthStore = defineStore('auth', () => {
           lastName: user.value.lastName,
           fullName: user.value.fullName,
           role: user.value.role,
+          avatar: user.value.avatar,
+          avatarUrl: user.value.avatar ? user.value.avatar : 'No disponible',
           account: user.value.account?.name
         })
+        
+        console.log('👤 Estado completo del usuario:', user.value)
       }
     } catch (err) {
       console.error('Error obteniendo datos del usuario desde backend:', err)

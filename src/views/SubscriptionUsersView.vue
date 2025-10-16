@@ -166,8 +166,9 @@
           <!-- User Info Cell -->
           <template #cell-name="{ row }">
             <div class="user-info">
-              <div class="user-avatar">
-                {{ getUserInitial(row) }}
+              <div class="user-avatar" :class="{ 'has-image': row.avatar }">
+                <img v-if="row.avatar" :src="row.avatar" :alt="`Avatar de ${getUserDisplayName(row)}`" />
+                <span v-else>{{ getUserInitial(row) }}</span>
               </div>
               <div class="user-details">
                 <span class="user-name">{{ getUserDisplayName(row) }}</span>
@@ -996,6 +997,21 @@ watch(showAddUserModal, (isOpen) => {
   font-size: 1rem;
   flex-shrink: 0;
   box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.user-avatar.has-image {
+  background: var(--color-background-mute);
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .user-details {

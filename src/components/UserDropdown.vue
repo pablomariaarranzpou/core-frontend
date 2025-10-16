@@ -5,8 +5,9 @@
       class="user-dropdown-trigger"
       :class="{ 'is-open': isOpen }"
     >
-      <div class="user-avatar">
-        <span>{{ avatarInitial }}</span>
+      <div class="user-avatar" :class="{ 'has-image': authStore.user?.avatar }">
+        <img v-if="authStore.user?.avatar" :src="authStore.user.avatar" alt="Avatar" />
+        <span v-else>{{ avatarInitial }}</span>
       </div>
       <div class="user-info-compact">
         <span class="user-name">{{ displayName }}</span>
@@ -30,8 +31,9 @@
     <transition name="dropdown">
       <div v-if="isOpen" class="user-dropdown-menu">
         <div class="dropdown-header">
-          <div class="user-avatar-large">
-            <span>{{ avatarInitial }}</span>
+          <div class="user-avatar-large" :class="{ 'has-image': authStore.user?.avatar }">
+            <img v-if="authStore.user?.avatar" :src="authStore.user.avatar" alt="Avatar" />
+            <span v-else>{{ avatarInitial }}</span>
           </div>
           <div class="user-details">
             <div class="user-name-full">{{ displayName }}</div>
@@ -79,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
@@ -87,6 +89,15 @@ import { useRouter } from 'vue-router'
 const authStore = useAuthStore()
 const router = useRouter()
 const isOpen = ref(false)
+
+// Debug: verificar avatar del usuario
+console.log('🖼️ UserDropdown - Usuario completo:', authStore.user)
+console.log('🖼️ UserDropdown - Avatar URL:', authStore.user?.avatar)
+
+// Watcher para detectar cambios en el avatar
+watch(() => authStore.user?.avatar, (newAvatar, oldAvatar) => {
+  console.log('🔄 Avatar cambió:', { old: oldAvatar, new: newAvatar })
+}, { immediate: true })
 
 const avatarInitial = computed(() => {
   // Prioridad: firstName > name attribute > given_name attribute > email
@@ -229,6 +240,21 @@ const vClickOutside = {
   flex-shrink: 0;
   box-shadow: 0 2px 4px 0 rgba(59, 130, 246, 0.3);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  position: relative;
+}
+
+.user-avatar.has-image {
+  background: var(--color-background-mute);
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .user-dropdown-trigger:hover .user-avatar {
@@ -294,6 +320,21 @@ const vClickOutside = {
   font-size: 1.25rem;
   flex-shrink: 0;
   box-shadow: var(--shadow-md);
+  overflow: hidden;
+  position: relative;
+}
+
+.user-avatar-large.has-image {
+  background: var(--color-background-mute);
+}
+
+.user-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .user-details {

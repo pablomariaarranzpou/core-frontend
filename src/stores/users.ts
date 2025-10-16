@@ -9,6 +9,7 @@ export interface User {
   lastName: string
   role: 'admin' | 'user' | 'owner'
   isActive: boolean
+  avatar?: string | null
   phone?: string | null
   lastLoginAt?: string | null
   createdAt: string
@@ -37,6 +38,7 @@ export interface UpdateUserDto {
   lastName?: string
   role?: 'admin' | 'user' | 'owner'
   isActive?: boolean
+  avatar?: string | null
   phone?: string | null
 }
 
@@ -246,6 +248,84 @@ export const useUsersStore = defineStore('users', () => {
     }
   }
 
+  // Funciones de Avatar
+  async function uploadAvatar(file: File): Promise<string> {
+    loading.value = true
+    error.value = null
+
+    try {
+      // 1. Validar que sea imagen
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Solo se permiten archivos de imagen (JPG, PNG, WEBP, GIF)')
+      }
+
+      // 2. Validar tamaño (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error(`La imagen no debe superar 5MB. Tamaño actual: ${(file.size / (1024 * 1024)).toFixed(2)}MB`)
+      }
+
+      // 3. Solicitar URL prefirmada
+      const uploadData = await httpService.post<{ uploadUrl: string; fileUrl: string }>(
+        '/users/profile/avatar/upload-url',
+        {
+          fileName: file.name,
+          contentType: file.type,
+        }
+      )
+
+      const { uploadUrl, fileUrl } = uploadData
+
+      // 4. Subir archivo a S3
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file,
+      })
+
+      if (!uploadResponse.ok) {
+        throw new Error('Error al subir el archivo a S3')
+      }
+
+      // 5. Actualizar perfil con nueva URL
+      await httpService.patch<User>('/users/profile', {
+        avatar: fileUrl,
+      })
+
+      return fileUrl
+    } catch (err: any) {
+      error.value = err.message || 'Error al subir avatar'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function removeAvatar(): Promise<void> {
+    loading.value = true
+    error.value = null
+
+    try {
+      // Actualizar perfil sin avatar
+      await httpService.patch<User>('/users/profile', {
+        avatar: null,
+      })
+    } catch (err: any) {
+      error.value = err.message || 'Error al eliminar avatar'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Utilidades para avatar
+  function getInitials(firstName: string, lastName: string): string {
+    const first = firstName?.charAt(0)?.toUpperCase() || ''
+    const last = lastName?.charAt(0)?.toUpperCase() || ''
+    return `${first}${last}` || '?'
+  }
+
   function clearError() {
     error.value = null
   }
@@ -283,6 +363,9 @@ export const useUsersStore = defineStore('users', () => {
     deleteUser,
     inviteUser,
     changeUserRole,
+    uploadAvatar,
+    removeAvatar,
+    getInitials,
     clearError,
     reset,
   }
