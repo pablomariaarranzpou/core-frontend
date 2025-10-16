@@ -73,11 +73,20 @@ export const useAccountsStore = defineStore('accounts', () => {
     total: 0,
     totalPages: 0,
   })
+  
+  // Cache control
+  const lastFetchCurrentAccount = ref<number | null>(null)
+  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 
   // Computed
   const activeAccounts = computed(() =>
     accounts.value.filter((account) => account.isActive)
   )
+  
+  const isCacheValid = computed(() => {
+    if (!lastFetchCurrentAccount.value) return false
+    return Date.now() - lastFetchCurrentAccount.value < CACHE_DURATION
+  })
 
   const inactiveAccounts = computed(() =>
     accounts.value.filter((account) => !account.isActive)
@@ -126,13 +135,20 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
-  async function fetchCurrentAccount() {
+  async function fetchCurrentAccount(skipCache = false) {
+    // Si tenemos datos en caché válidos y no queremos saltarlo, retornar del caché
+    if (!skipCache && isCacheValid.value && currentAccount.value) {
+      console.log('✅ Usando cuenta actual desde caché')
+      return currentAccount.value
+    }
+
     loading.value = true
     error.value = null
 
     try {
       const response = await httpService.get<Account>('/accounts')
       currentAccount.value = response
+      lastFetchCurrentAccount.value = Date.now()
       return response
     } catch (err: any) {
       error.value = err.message || 'Error al cargar cuenta actual'
@@ -264,12 +280,17 @@ export const useAccountsStore = defineStore('accounts', () => {
   function clearError() {
     error.value = null
   }
+  
+  function invalidateCache() {
+    lastFetchCurrentAccount.value = null
+  }
 
   function reset() {
     accounts.value = []
     currentAccount.value = null
     loading.value = false
     error.value = null
+    lastFetchCurrentAccount.value = null
     pagination.value = {
       page: 1,
       limit: 10,
@@ -285,9 +306,11 @@ export const useAccountsStore = defineStore('accounts', () => {
     loading,
     error,
     pagination,
+    lastFetchCurrentAccount,
     // Computed
     activeAccounts,
     inactiveAccounts,
+    isCacheValid,
     // Actions
     fetchAccounts,
     fetchAccountById,
@@ -295,6 +318,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     createAccount,
     updateAccount,
     clearError,
+    invalidateCache,
     reset,
   }
 })

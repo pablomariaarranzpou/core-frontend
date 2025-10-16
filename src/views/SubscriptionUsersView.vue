@@ -1,8 +1,14 @@
 <template>
   <div class="subscription-users-view">
     <div class="container py-lg">
+      <!-- Loading State -->
+      <div v-if="!initialLoadComplete" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Cargando información de la suscripción...</p>
+      </div>
+
       <!-- Access Denied State (403 - No permissions) -->
-      <div v-if="isForbidden" class="access-denied">
+      <div v-else-if="isForbidden" class="access-denied">
         <div class="access-denied-icon" style="background: rgba(255, 159, 10, 0.1);">
           <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
@@ -69,7 +75,7 @@
           
           <div class="header-content">
             <div class="app-info">
-              <div class="app-icon" v-if="application">
+              <div class="app-icon" v-if="application" :style="getAppLogo() ? { background: 'transparent' } : {}">
                 <img v-if="getAppLogo()" :src="getAppLogo()!" :alt="application.name" />
                 <span v-else>{{ getAppInitials() }}</span>
               </div>
@@ -204,9 +210,7 @@
           <!-- Actions Cell -->
           <template #actions="{ row }">
             <DropdownActions :title="`Acciones para ${getUserDisplayName(row)}`">
-              <DropdownItem icon="edit" label="Editar rol" @click="handleEditUser(row)" />
-              <DropdownDivider />
-              <DropdownItem icon="delete" label="Quitar de suscripción" variant="danger" @click="handleRemoveUser(row)" />
+              <DropdownItem icon="delete" label="Quitar acceso a aplicación" variant="danger" @click="handleRemoveUser(row)" />
             </DropdownActions>
           </template>
         </DataTable>
@@ -235,7 +239,6 @@ import { useApplicationsStore } from '@/stores/applications'
 import { useUsersStore } from '@/stores/users'
 import { useTheme } from '@/composables/useTheme'
 import { useConfirm } from '@/composables/useConfirm'
-import httpService from '@/services/http'
 import DataTable, { type TableColumn } from '@/components/table/DataTable.vue'
 import DropdownActions from '@/components/table/DropdownActions.vue'
 import DropdownItem from '@/components/table/DropdownItem.vue'
@@ -262,6 +265,7 @@ const showAddUserModal = ref(false)
 const loading = ref(false)
 const error = ref('')
 const isForbidden = ref(false)
+const initialLoadComplete = ref(false)
 
 // Subscription users state
 const subscriptionUsersData = ref<any[]>([])
@@ -277,13 +281,21 @@ const addingUser = ref(false)
 // SUBSCRIPTION & APPLICATION DATA
 // ============================================
 const currentSubscription = computed(() => {
+  // No mostrar nada hasta que se haya completado la carga inicial
+  if (!initialLoadComplete.value) return null
+  
   return subscriptionsStore.subscriptions.find(sub => 
     sub.application?.id === applicationId.value &&
     (sub.status.toLowerCase() === 'active' || sub.status.toLowerCase() === 'trialing')
   )
 })
 
-const isSubscribed = computed(() => !!currentSubscription.value)
+const isSubscribed = computed(() => {
+  // No mostrar nada hasta que se haya completado la carga inicial
+  if (!initialLoadComplete.value) return true // Evitar mostrar "no suscrito" mientras carga
+  
+  return !!currentSubscription.value
+})
 
 const application = computed(() => {
   return currentSubscription.value?.application || 
@@ -520,26 +532,81 @@ async function handleRemoveUser(user: any) {
   const userName = getUserDisplayName(user)
   
   const confirmed = await confirm({
-    title: 'Quitar Usuario',
-    message: `¿Estás seguro de que deseas quitar a ${userName} de esta suscripción?`,
-    details: 'El usuario perderá acceso a esta aplicación.',
+    title: 'Quitar Acceso a Aplicación',
+    message: `¿Estás seguro de que deseas quitar el acceso de ${userName} a esta aplicación?`,
+    details: 'El usuario mantendrá su cuenta pero no podrá acceder a esta aplicación. Esta acción no elimina al usuario de la organización.',
     type: 'warning',
-    confirmText: 'Sí, quitar',
+    confirmText: 'Sí, quitar acceso',
     cancelText: 'Cancelar',
   })
   
   if (!confirmed) return
   
-  console.log('Remove user from subscription:', user)
-  // TODO: Implement remove user from subscription API call
-  await confirm({
-    title: 'Función en desarrollo',
-    message: 'La eliminación de usuarios estará disponible próximamente',
-    details: 'Esta funcionalidad se está implementando.',
-    type: 'info',
-    confirmText: 'Entendido',
-    showCancel: false,
-  })
+  try {
+    console.log('🔄 Removiendo usuario de la suscripción:', {
+      subscriptionId: currentSubscription.value?.id,
+      userId: user.id,
+    })
+    
+    // Usar el método del store (que internamente usa httpService)
+    await subscriptionsStore.removeUserFromSubscription(
+      currentSubscription.value!.id,
+      user.id
+    )
+    
+    console.log('✅ Usuario removido correctamente')
+    
+    // Mostrar éxito
+    await confirm({
+      title: '¡Acceso Revocado!',
+      message: `${userName} ya no tiene acceso a esta aplicación.`,
+      details: 'El usuario ha sido removido de la suscripción correctamente.',
+      type: 'success',
+      confirmText: 'Entendido',
+      showCancel: false,
+    })
+    
+    // Recargar usuarios de la suscripción
+    await loadSubscriptionUsers()
+    
+  } catch (err: any) {
+    console.error('❌ Error al remover usuario de la suscripción:', err)
+    
+    // Extraer mensaje de error específico
+    let errorMessage = 'No se pudo quitar el acceso del usuario'
+    let errorDetails = 'Por favor, inténtalo de nuevo más tarde.'
+    
+    // Manejar errores específicos
+    const status = err?.statusCode || err?.status || err?.response?.status
+    
+    if (status === 403) {
+      errorMessage = 'No tienes permisos para realizar esta acción'
+      errorDetails = 'Solo los administradores y propietarios pueden gestionar usuarios.'
+    } else if (status === 400) {
+      errorMessage = 'No se puede remover este usuario'
+      errorDetails = 'No puedes remover al propietario de la cuenta de la suscripción.'
+    } else if (status === 404) {
+      errorMessage = 'Usuario o suscripción no encontrada'
+      errorDetails = 'El usuario ya no está en esta suscripción o la suscripción no existe.'
+    } else if (err.message) {
+      try {
+        const errorData = JSON.parse(err.message)
+        errorMessage = errorData.message || errorMessage
+        errorDetails = errorData.error || errorDetails
+      } catch {
+        errorMessage = err.message
+      }
+    }
+    
+    await confirm({
+      title: 'Error',
+      message: errorMessage,
+      details: errorDetails,
+      type: 'error',
+      confirmText: 'Cerrar',
+      showCancel: false,
+    })
+  }
 }
 
 // ============================================
@@ -557,8 +624,8 @@ async function loadSubscriptionUsers() {
   try {
     console.log('🔄 Cargando usuarios de la suscripción:', currentSubscription.value.id)
     
-    const response = await httpService.get<any[]>(
-      `/subscriptions/${currentSubscription.value.id}/users`
+    const response = await subscriptionsStore.fetchSubscriptionUsers(
+      currentSubscription.value.id
     )
     
     subscriptionUsersData.value = response
@@ -619,10 +686,10 @@ async function handleAddUserToSubscription(userId: string) {
       userId: userId,
     })
     
-    // Llamar al endpoint del backend para añadir usuario a la suscripción
-    const response = await httpService.post(
-      `/subscriptions/${currentSubscription.value.id}/users`,
-      { userId }
+    // Usar el método del store
+    const response = await subscriptionsStore.addUserToSubscription(
+      currentSubscription.value.id,
+      userId
     )
     
     console.log('✅ Usuario añadido correctamente:', response)
@@ -677,28 +744,45 @@ async function handleAddUserToSubscription(userId: string) {
 // LIFECYCLE
 // ============================================
 onMounted(async () => {
-  // Load subscriptions if not loaded
-  if (subscriptionsStore.subscriptions.length === 0) {
-    try {
-      await subscriptionsStore.fetchSubscriptions()
-    } catch (err: any) {
-      // Check if it's a 403 Forbidden error
-      const status = err?.statusCode || err?.status || err?.response?.status
-      if (status === 403) {
-        console.log('🔒 Usuario sin permisos para gestionar usuarios (403)')
-        isForbidden.value = true
-        return
-      }
+  console.log('📍 SubscriptionUsersView: Iniciando carga...')
+  
+  try {
+    // Load subscriptions if not loaded (usa caché)
+    console.log('🔄 Cargando suscripciones...')
+    await subscriptionsStore.fetchSubscriptions()
+    console.log(`✅ Suscripciones cargadas: ${subscriptionsStore.subscriptions.length}`)
+    
+    // Load application if not loaded
+    if (!application.value && applicationId.value) {
+      console.log('🔄 Cargando aplicación...')
+      await applicationsStore.fetchApplicationById(applicationId.value)
     }
+    
+    // Marcar que la carga inicial está completa
+    // Esto permite que los computed evalúen correctamente isSubscribed
+    initialLoadComplete.value = true
+    
+    // Ahora cargar usuarios de la suscripción si existe
+    if (currentSubscription.value) {
+      console.log('✅ Suscripción encontrada, cargando usuarios...')
+      await loadSubscriptionUsers()
+    } else {
+      console.log('⚠️ No hay suscripción activa para esta aplicación')
+    }
+    
+  } catch (err: any) {
+    console.error('❌ Error en carga inicial:', err)
+    
+    // Check if it's a 403 Forbidden error
+    const status = err?.statusCode || err?.status || err?.response?.status
+    if (status === 403) {
+      console.log('🔒 Usuario sin permisos para gestionar usuarios (403)')
+      isForbidden.value = true
+    }
+    
+    // Marcar carga como completa incluso con error
+    initialLoadComplete.value = true
   }
-  
-  // Load application if not loaded
-  if (!application.value && applicationId.value) {
-    await applicationsStore.fetchApplicationById(applicationId.value)
-  }
-  
-  // Cargar usuarios de la suscripción usando el endpoint correcto
-  await loadSubscriptionUsers()
 })
 
 // Watch for subscription changes to reload users
@@ -724,6 +808,39 @@ watch(showAddUserModal, (isOpen) => {
   width: 100%;
   min-height: 100vh;
   background: var(--color-background);
+}
+
+/* ============================================
+   LOADING STATE
+   ============================================ */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  gap: 1.5rem;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 /* ============================================
@@ -821,15 +938,15 @@ watch(showAddUserModal, (isOpen) => {
 }
 
 .app-icon {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
   color: white;
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);

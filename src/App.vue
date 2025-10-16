@@ -11,9 +11,10 @@ const themeStore = useThemeStore()
 const authStore = useAuthStore()
 const { confirmState, handleConfirm, handleCancel } = useConfirm()
 
-onMounted(async () => {
+onMounted(() => {
+  // Solo inicializar tema aquí
+  // El auth se inicializa en el router guard para evitar llamadas duplicadas
   themeStore.initTheme()
-  await authStore.initialize()
 })
 </script>
 

@@ -97,9 +97,13 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  // Inicializar el store de auth si no se ha hecho
-  if (!authStore.user && !authStore.isAuthenticated) {
+  // Solo inicializar si no tenemos usuario Y no hay caché válido
+  // Esto evita llamadas duplicadas usando el sistema de caché
+  if (!authStore.isAuthenticated && !authStore.isCacheValid) {
+    console.log('🔐 Router: Inicializando autenticación...')
     await authStore.initialize()
+  } else if (authStore.isCacheValid && authStore.user) {
+    console.log('✅ Router: Usando autenticación desde caché')
   }
 
   const requiresAuth = to.meta.requiresAuth !== false
@@ -107,9 +111,11 @@ router.beforeEach(async (to, from, next) => {
 
   if (requiresAuth && !authStore.isAuthenticated) {
     // Ruta protegida sin autenticación -> ir a auth
+    console.log('🔒 Router: Redirigiendo a /auth (no autenticado)')
     next({ name: 'auth', query: { redirect: to.fullPath } })
   } else if (isAuthRoute && authStore.isAuthenticated) {
     // Usuario autenticado intentando acceder a auth -> ir al dashboard
+    console.log('✅ Router: Usuario autenticado, redirigiendo a dashboard')
     next({ name: 'dashboard' })
   } else {
     // Permitir navegación

@@ -64,7 +64,13 @@ export const useApplicationsStore = defineStore('applications', () => {
   const marketplaceApps = ref<Application[]>([])
   const currentApplication = ref<Application | null>(null)
   const loading = ref(false)
+  const loadingMarketplace = ref(false)
   const error = ref<string | null>(null)
+  
+  // Cache control
+  const lastFetchUserApps = ref<number | null>(null)
+  const lastFetchMarketplace = ref<number | null>(null)
+  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 
   // Computed
   const applicationsCount = computed(() => applications.value.length)
@@ -72,6 +78,14 @@ export const useApplicationsStore = defineStore('applications', () => {
   const activeSubscriptionsCount = computed(() => 
     userSubscriptions.value.filter(sub => sub.status === 'ACTIVE').length
   )
+  const isUserAppsCacheValid = computed(() => {
+    if (!lastFetchUserApps.value) return false
+    return Date.now() - lastFetchUserApps.value < CACHE_DURATION
+  })
+  const isMarketplaceCacheValid = computed(() => {
+    if (!lastFetchMarketplace.value) return false
+    return Date.now() - lastFetchMarketplace.value < CACHE_DURATION
+  })
 
   // Actions
   
@@ -79,19 +93,38 @@ export const useApplicationsStore = defineStore('applications', () => {
    * Obtiene todas las aplicaciones disponibles (catálogo público)
    * Endpoint: GET /applications
    */
-  async function fetchAllApplications() {
-    loading.value = true
+  async function fetchAllApplications(skipCache = false) {
+    // Si tenemos datos en caché válidos y no queremos saltarlo, retornar del caché
+    if (!skipCache && isMarketplaceCacheValid.value && marketplaceApps.value.length > 0) {
+      console.log('✅ Usando aplicaciones del marketplace desde caché')
+      return marketplaceApps.value
+    }
+
+    // Si ya está cargando, esperar a que termine en lugar de hacer otra llamada
+    if (loadingMarketplace.value) {
+      console.log('⏳ Ya hay una petición de marketplace en curso, esperando...')
+      while (loadingMarketplace.value) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      console.log('✅ Petición de marketplace completada, usando datos cargados')
+      return marketplaceApps.value
+    }
+
+    loadingMarketplace.value = true
     error.value = null
 
     try {
+      console.log('🔄 Cargando marketplace desde API...')
       const response = await httpService.get<Application[]>('/applications')
       marketplaceApps.value = response
+      lastFetchMarketplace.value = Date.now()
+      console.log(`✅ ${response.length} apps del marketplace cargadas y en caché`)
       return response
     } catch (err: any) {
       error.value = err.message || 'Error al cargar aplicaciones del marketplace'
       throw err
     } finally {
-      loading.value = false
+      loadingMarketplace.value = false
     }
   }
 
@@ -104,11 +137,30 @@ export const useApplicationsStore = defineStore('applications', () => {
    * - Periodo actual
    * - Usuarios asignados (para owner/admin)
    */
-  async function fetchUserApplications() {
+  async function fetchUserApplications(skipCache = false) {
+    // Si tenemos datos en caché válidos y no queremos saltarlo, retornar del caché
+    if (!skipCache && isUserAppsCacheValid.value && userSubscriptions.value.length > 0) {
+      console.log('✅ Usando aplicaciones del usuario desde caché')
+      return userSubscriptions.value
+    }
+
+    // Si ya está cargando, esperar a que termine en lugar de hacer otra llamada
+    if (loading.value) {
+      console.log('⏳ Ya hay una petición en curso, esperando...')
+      // Esperar hasta que loading sea false
+      while (loading.value) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      // Retornar los datos que ya se cargaron
+      console.log('✅ Petición completada, usando datos cargados')
+      return userSubscriptions.value
+    }
+
     loading.value = true
     error.value = null
 
     try {
+      console.log('🔄 Cargando aplicaciones del usuario desde API...')
       const response = await httpService.get<UserApplicationSubscription[]>('/accounts/applications')
       
       // Guardar toda la información de las suscripciones
@@ -117,6 +169,9 @@ export const useApplicationsStore = defineStore('applications', () => {
       // También mantener un array simple de aplicaciones para compatibilidad
       applications.value = response.map(sub => sub.application)
       
+      lastFetchUserApps.value = Date.now()
+      
+      console.log(`✅ ${response.length} aplicaciones cargadas y en caché`)
       return response
     } catch (err: any) {
       error.value = err.message || 'Error al cargar aplicaciones del usuario'
@@ -169,6 +224,11 @@ export const useApplicationsStore = defineStore('applications', () => {
   function clearError() {
     error.value = null
   }
+  
+  function invalidateCache() {
+    lastFetchUserApps.value = null
+    lastFetchMarketplace.value = null
+  }
 
   function reset() {
     applications.value = []
@@ -176,7 +236,10 @@ export const useApplicationsStore = defineStore('applications', () => {
     marketplaceApps.value = []
     currentApplication.value = null
     loading.value = false
+    loadingMarketplace.value = false
     error.value = null
+    lastFetchUserApps.value = null
+    lastFetchMarketplace.value = null
   }
 
   return {
@@ -186,17 +249,23 @@ export const useApplicationsStore = defineStore('applications', () => {
     marketplaceApps,
     currentApplication,
     loading,
+    loadingMarketplace,
     error,
+    lastFetchUserApps,
+    lastFetchMarketplace,
     // Computed
     applicationsCount,
     marketplaceAppsCount,
     activeSubscriptionsCount,
+    isUserAppsCacheValid,
+    isMarketplaceCacheValid,
     // Actions
     fetchAllApplications,
     fetchUserApplications,
     fetchApplicationById,
     fetchApplicationBySlug,
     clearError,
+    invalidateCache,
     reset,
   }
 })

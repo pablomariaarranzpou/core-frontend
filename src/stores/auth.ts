@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { getCurrentUser, signOut, fetchUserAttributes, type AuthUser } from 'aws-amplify/auth'
+import { signOut } from 'aws-amplify/auth'
 import { http } from '@/services/http'
 
 // Interfaces
@@ -28,82 +28,77 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const lastFetch = ref<number | null>(null)
+  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 
   // Computed
   const isAuthenticated = computed(() => !!user.value)
-
-  // Funciones auxiliares
-  const mapAmplifyUserToUser = (authUser: AuthUser, attributes?: Record<string, string | undefined>): User => {
-    return {
-      id: authUser.userId,
-      email: attributes?.email || authUser.signInDetails?.loginId || '',
-      username: attributes?.preferred_username || authUser.username,
-      emailVerified: attributes?.email_verified === 'true',
-      attributes: attributes as Record<string, string> | undefined,
-    }
-  }
+  const isCacheValid = computed(() => {
+    if (!lastFetch.value) return false
+    return Date.now() - lastFetch.value < CACHE_DURATION
+  })
 
   // Acciones
 
   /**
-   * Obtener información del usuario desde el backend
+   * Obtener el usuario actual - solo usa el backend (1 llamada)
+   * El backend ya valida el token de Cognito y nos da toda la información
    */
-  const fetchUserFromBackend = async (): Promise<void> => {
+  const getCurrentUserInfo = async (skipCache = false): Promise<User | null> => {
+    // Si tenemos datos en caché válidos y no queremos saltarlo, retornar del caché
+    if (!skipCache && isCacheValid.value && user.value) {
+      console.log('✅ Usando datos de usuario desde caché')
+      return user.value
+    }
+
     try {
+      // Solo 1 llamada al backend - el backend valida el token internamente
       const backendUser = await http.get('/auth/me')
       
-      console.log('🔍 Respuesta completa del backend:', backendUser)
+      console.log('🔍 Respuesta del backend:', backendUser)
       
-      // Actualizar el usuario con los datos del backend
-      if (user.value) {
-        user.value.firstName = backendUser.firstName
-        user.value.lastName = backendUser.lastName
-        user.value.fullName = `${backendUser.firstName} ${backendUser.lastName}`.trim()
-        user.value.role = backendUser.role
-        user.value.avatar = backendUser.avatar
-        user.value.phone = backendUser.phone
-        user.value.account = backendUser.account
-        
-        console.log('✅ Datos del usuario obtenidos del backend:', {
-          firstName: user.value.firstName,
-          lastName: user.value.lastName,
-          fullName: user.value.fullName,
-          role: user.value.role,
-          avatar: user.value.avatar,
-          avatarUrl: user.value.avatar ? user.value.avatar : 'No disponible',
-          account: user.value.account?.name
-        })
-        
-        console.log('👤 Estado completo del usuario:', user.value)
+      // Mapear directamente desde el backend
+      user.value = {
+        id: backendUser.id,
+        email: backendUser.email,
+        username: backendUser.email.split('@')[0], // Derivar username del email
+        emailVerified: true, // Si el backend responde, el email está verificado
+        firstName: backendUser.firstName,
+        lastName: backendUser.lastName,
+        fullName: `${backendUser.firstName} ${backendUser.lastName}`.trim(),
+        role: backendUser.role,
+        avatar: backendUser.avatar,
+        phone: backendUser.phone,
+        account: backendUser.account
       }
-    } catch (err) {
-      console.error('Error obteniendo datos del usuario desde backend:', err)
-    }
-  }
+      
+      console.log('✅ Usuario autenticado:', {
+        email: user.value.email,
+        name: user.value.fullName,
+        role: user.value.role,
+        account: user.value.account?.name
+      })
 
-  /**
-   * Obtener el usuario actual de Amplify
-   */
-  const getCurrentUserInfo = async (): Promise<User | null> => {
-    try {
-      const authUser = await getCurrentUser()
-      const attributes = await fetchUserAttributes()
-
-      const mappedUser = mapAmplifyUserToUser(authUser, attributes)
-      user.value = mappedUser
-
-      // Obtener datos adicionales del backend
-      await fetchUserFromBackend()
+      // Actualizar timestamp de última carga
+      lastFetch.value = Date.now()
 
       return user.value
     } catch (err: any) {
       // Solo loguear si no es un error de "no autenticado"
-      if (err.name !== 'UserUnAuthenticatedException') {
+      if (err.name !== 'UserUnAuthenticatedException' && err.status !== 401) {
         console.error('Error getting current user:', err)
       }
       user.value = null
+      lastFetch.value = null
       return null
     }
+  }
+  
+  /**
+   * Obtener información del usuario desde el backend (alias para compatibilidad)
+   */
+  const fetchUserFromBackend = async (): Promise<void> => {
+    await getCurrentUserInfo(true)
   }
 
   /**
@@ -149,10 +144,17 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * Refrescar la información del usuario
+   * Refrescar la información del usuario (siempre salta el caché)
    */
   const refreshUser = async () => {
-    return await getCurrentUserInfo()
+    return await getCurrentUserInfo(true)
+  }
+  
+  /**
+   * Invalidar el caché manualmente
+   */
+  const invalidateCache = () => {
+    lastFetch.value = null
   }
 
   /**
@@ -172,14 +174,17 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     loading,
     error,
+    lastFetch,
     // Computed
     isAuthenticated,
+    isCacheValid,
     // Acciones
     getCurrentUserInfo,
     fetchUserFromBackend,
     logout,
     initialize,
     refreshUser,
+    invalidateCache,
     checkAuthState,
   }
 })

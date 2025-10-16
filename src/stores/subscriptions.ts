@@ -138,6 +138,10 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     total: 0,
     totalPages: 0,
   })
+  
+  // Cache control
+  const lastFetchSubscriptions = ref<number | null>(null)
+  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 
   // Computed
   const activeSubscriptions = computed(() =>
@@ -145,6 +149,11 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
       sub.status.toLowerCase() === 'active' || sub.status === 'ACTIVE'
     )
   )
+  
+  const isCacheValid = computed(() => {
+    if (!lastFetchSubscriptions.value) return false
+    return Date.now() - lastFetchSubscriptions.value < CACHE_DURATION
+  })
 
   const trialingSubscriptions = computed(() =>
     subscriptions.value.filter((sub) => 
@@ -173,11 +182,28 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
   })
 
   // Actions
-  async function fetchSubscriptions(page = 1, limit = 100) {
+  async function fetchSubscriptions(page = 1, limit = 100, skipCache = false) {
+    // Si tenemos datos en caché válidos y no queremos saltarlo, retornar del caché
+    if (!skipCache && isCacheValid.value && subscriptions.value.length > 0) {
+      console.log('✅ Usando suscripciones desde caché')
+      return subscriptions.value
+    }
+
+    // Si ya está cargando, esperar a que termine
+    if (loading.value) {
+      console.log('⏳ Ya hay una petición de suscripciones en curso, esperando...')
+      while (loading.value) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      console.log('✅ Petición de suscripciones completada, usando datos cargados')
+      return subscriptions.value
+    }
+
     loading.value = true
     error.value = null
 
     try {
+      console.log('🔄 Cargando suscripciones desde API...')
       // Intentar obtener suscripciones del backend
       const response = await httpService.get<any>(`/subscriptions?page=${page}&limit=${limit}`)
 
@@ -202,7 +228,8 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
         }
       }
 
-      console.log('✅ Subscriptions fetched:', subscriptions.value.length)
+      lastFetchSubscriptions.value = Date.now()
+      console.log(`✅ ${subscriptions.value.length} suscripciones cargadas y en caché`)
       return subscriptions.value
     } catch (err: any) {
       error.value = err.message || 'Error al cargar suscripciones'
@@ -441,8 +468,44 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     }
   }
 
+  async function addUserToSubscription(subscriptionId: string, userId: string) {
+    loading.value = true
+    error.value = null
+
+    try {
+      const response = await httpService.post<any>(
+        `/subscriptions/${subscriptionId}/users`,
+        { userId }
+      )
+      return response
+    } catch (err: any) {
+      error.value = err.message || 'Error al añadir usuario a la suscripción'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function removeUserFromSubscription(subscriptionId: string, userId: string) {
+    loading.value = true
+    error.value = null
+
+    try {
+      await httpService.delete(`/subscriptions/${subscriptionId}/users/${userId}`)
+    } catch (err: any) {
+      error.value = err.message || 'Error al remover usuario de la suscripción'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   function clearError() {
     error.value = null
+  }
+  
+  function invalidateCache() {
+    lastFetchSubscriptions.value = null
   }
 
   function reset() {
@@ -451,6 +514,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     plans.value = []
     loading.value = false
     error.value = null
+    lastFetchSubscriptions.value = null
     pagination.value = {
       page: 1,
       limit: 10,
@@ -467,6 +531,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     loading,
     error,
     pagination,
+    lastFetchSubscriptions,
     // Computed
     activeSubscriptions,
     trialingSubscriptions,
@@ -474,6 +539,7 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     hasActiveSubscription,
     totalMonthlyRevenue,
     totalYearlyRevenue,
+    isCacheValid,
     // Actions
     fetchSubscriptions,
     fetchSubscriptionById,
@@ -486,7 +552,10 @@ export const useSubscriptionsStore = defineStore('subscriptions', () => {
     reactivateSubscription,
     changePlan,
     fetchSubscriptionUsers,
+    addUserToSubscription,
+    removeUserFromSubscription,
     clearError,
+    invalidateCache,
     reset,
   }
 })

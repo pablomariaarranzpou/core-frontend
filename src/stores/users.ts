@@ -62,9 +62,18 @@ export const useUsersStore = defineStore('users', () => {
     total: 0,
     totalPages: 0,
   })
+  
+  // Cache control
+  const lastFetchUsers = ref<number | null>(null)
+  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
 
   // Computed
   const activeUsers = computed(() => users.value?.filter((user) => user.isActive) || [])
+  
+  const isCacheValid = computed(() => {
+    if (!lastFetchUsers.value) return false
+    return Date.now() - lastFetchUsers.value < CACHE_DURATION
+  })
 
   const inactiveUsers = computed(() => users.value?.filter((user) => !user.isActive) || [])
 
@@ -84,11 +93,40 @@ export const useUsersStore = defineStore('users', () => {
   })
 
   // Actions
-  async function fetchUsers(page = 1, limit = 10) {
+  async function fetchUsers(page = 1, limit = 10, skipCache = false) {
+    // Si tenemos datos en caché válidos y no queremos saltarlo, retornar del caché
+    if (!skipCache && isCacheValid.value && users.value.length > 0) {
+      console.log('✅ Usando usuarios desde caché')
+      return Array.isArray(users.value) ? {
+        data: users.value,
+        page: pagination.value.page,
+        limit: pagination.value.limit,
+        total: pagination.value.total,
+        totalPages: pagination.value.totalPages,
+      } : users.value
+    }
+
+    // Si ya está cargando, esperar a que termine
+    if (loading.value) {
+      console.log('⏳ Ya hay una petición de usuarios en curso, esperando...')
+      while (loading.value) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      console.log('✅ Petición de usuarios completada, usando datos cargados')
+      return Array.isArray(users.value) ? {
+        data: users.value,
+        page: pagination.value.page,
+        limit: pagination.value.limit,
+        total: pagination.value.total,
+        totalPages: pagination.value.totalPages,
+      } : users.value
+    }
+
     loading.value = true
     error.value = null
 
     try {
+      console.log('🔄 Cargando usuarios desde API...')
       const response = await httpService.get<User[] | PaginatedUsers>(
         `/users?page=${page}&limit=${limit}`
       )
@@ -105,6 +143,7 @@ export const useUsersStore = defineStore('users', () => {
           total: response.length,
           totalPages: 1,
         }
+        lastFetchUsers.value = Date.now()
         return {
           data: response,
           page: 1,
@@ -123,6 +162,8 @@ export const useUsersStore = defineStore('users', () => {
         total: response.total,
         totalPages: response.totalPages,
       }
+      
+      lastFetchUsers.value = Date.now()
 
       return response
     } catch (err: any) {
@@ -329,12 +370,17 @@ export const useUsersStore = defineStore('users', () => {
   function clearError() {
     error.value = null
   }
+  
+  function invalidateCache() {
+    lastFetchUsers.value = null
+  }
 
   function reset() {
     users.value = []
     currentUser.value = null
     loading.value = false
     error.value = null
+    lastFetchUsers.value = null
     pagination.value = {
       page: 1,
       limit: 10,
@@ -350,11 +396,13 @@ export const useUsersStore = defineStore('users', () => {
     loading,
     error,
     pagination,
+    lastFetchUsers,
     // Computed
     activeUsers,
     inactiveUsers,
     adminUsers,
     usersByRole,
+    isCacheValid,
     // Actions
     fetchUsers,
     fetchUserById,
@@ -367,6 +415,7 @@ export const useUsersStore = defineStore('users', () => {
     removeAvatar,
     getInitials,
     clearError,
+    invalidateCache,
     reset,
   }
 })

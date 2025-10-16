@@ -289,13 +289,20 @@ async function openApplication(app: any) {
 // Load data on mount
 onMounted(async () => {
   try {
+    // No usar skipCache - dejar que el sistema de caché decida
+    // Si los datos ya están cargados, los usará del caché (0 llamadas API)
+    // Si no están cargados, hará las llamadas necesarias
+    console.log('📊 Dashboard: Cargando datos...')
+    
     await Promise.all([
-      applicationsStore.fetchUserApplications(),
-      applicationsStore.fetchAllApplications(),
-      usersStore.fetchUsers()
+      applicationsStore.fetchUserApplications(), // Usa caché si es válido
+      applicationsStore.fetchAllApplications(), // Usa caché si es válido
+      usersStore.fetchUsers() // Usa caché si es válido
     ])
+    
+    console.log('✅ Dashboard: Datos cargados')
   } catch (err) {
-    console.error('Error al cargar datos del dashboard:', err)
+    console.error('❌ Dashboard: Error al cargar datos:', err)
   }
 })
 </script>

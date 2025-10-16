@@ -437,17 +437,17 @@ const totalMonthlySpend = computed(() => {
 // Functions
 async function loadSubscriptions() {
   try {
-    console.log('🔄 Cargando suscripciones...')
+    console.log('🔄 SubscriptionsView: Cargando datos...')
     
     isForbidden.value = false
     
-    // Cargar suscripciones del backend
+    // Cargar suscripciones del backend (usa caché si es válido)
     await subscriptionsStore.fetchSubscriptions()
     
     console.log('✅ Suscripciones cargadas:', subscriptions.value)
     console.log('📊 Total:', subscriptions.value?.length || 0)
     
-    // Cargar aplicaciones para enriquecer datos
+    // Cargar aplicaciones para enriquecer datos (usa caché si es válido)
     if (subscriptions.value && subscriptions.value.length > 0) {
       await applicationsStore.fetchUserApplications()
       console.log('✅ Aplicaciones cargadas:', applications.value?.length || 0)
