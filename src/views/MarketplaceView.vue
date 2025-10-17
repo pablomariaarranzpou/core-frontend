@@ -10,11 +10,7 @@ const { marketplaceApps, loading, error } = storeToRefs(applicationsStore)
 const { isDark } = useTheme()
 const { confirm } = useConfirm()
 
-const selectedCategory = ref<string>('all')
 const searchQuery = ref('')
-
-// Categorías disponibles (puedes ajustar según tu necesidad)
-const categories = ['all', 'CRM', 'Finanzas', 'Almacén', 'Análisis', 'Productividad', 'Marketing']
 
 // Computed properties
 const filteredApps = computed(() => {
@@ -22,7 +18,6 @@ const filteredApps = computed(() => {
     const matchesSearch = app.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
       (app.description && app.description.toLowerCase().includes(searchQuery.value.toLowerCase()))
     
-    // Por ahora no hay categorías en el backend, así que solo filtramos por búsqueda
     return matchesSearch
   })
 })
@@ -47,10 +42,6 @@ async function loadMarketplaceApps() {
   } catch (err) {
     console.error('Error al cargar aplicaciones del marketplace:', err)
   }
-}
-
-function selectCategory(category: string) {
-  selectedCategory.value = category
 }
 
 async function installApp(appId: string) {
@@ -83,7 +74,6 @@ function clearSearch() {
 
 function clearFilters() {
   searchQuery.value = ''
-  selectedCategory.value = 'all'
 }
 
 function viewApplicationDetails(appId: string) {
@@ -96,19 +86,6 @@ function formatInstalls(installs: number): string {
     return `${(installs / 1000).toFixed(1)}k`
   }
   return installs.toString()
-}
-
-function getCategoryIcon(category: string): string {
-  const icons: Record<string, string> = {
-    all: '🌐',
-    CRM: '👥',
-    Finanzas: '💰',
-    Almacén: '📦',
-    Análisis: '📊',
-    Productividad: '⚡',
-    Marketing: '📢',
-  }
-  return icons[category] || '📱'
 }
 
 function getAppIcon(name: string): string {
@@ -225,23 +202,6 @@ onMounted(() => {
             </svg>
           </div>
         </div>
-
-        <div class="filters-categories">
-          <button
-            v-for="category in categories"
-            :key="category"
-            :class="['category-btn', { active: selectedCategory === category }]"
-            @click="selectCategory(category)"
-          >
-            <span class="category-icon">{{ getCategoryIcon(category) }}</span>
-            <span class="category-label">{{ category === 'all' ? 'Todas' : category }}</span>
-            <span v-if="selectedCategory === category" class="category-check">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-            </span>
-          </button>
-        </div>
       </div>
 
       <!-- Results Info -->
@@ -249,7 +209,6 @@ onMounted(() => {
         <p>
           Mostrando <strong>{{ filteredApps.length }}</strong> 
           {{ filteredApps.length === 1 ? 'aplicación' : 'aplicaciones' }}
-          <span v-if="selectedCategory !== 'all'"> en <strong>{{ selectedCategory }}</strong></span>
         </p>
       </div>
 
